@@ -4,14 +4,14 @@ var mongoose = require('mongoose'),
      Openhab = require('./openhab'),
      Email = mongoose.SchemaTypes.Email,
      UserAccount = require('./useraccount'),
-     ObjectId = mongoose.SchemaTypes.ObjectId;
+     ObjectId = mongoose.SchemaTypes.ObjectId,
+     User;
 
 var MemoryBcryptCache = require('bcrypt-cache').MemoryBcryptCache;
 var memCache = new MemoryBcryptCache({
     ttl: 60,
     pruneTimer: 60
 });
-
 
 var UserSchema = new Schema({
     username: {type: String, unique: true},
@@ -85,6 +85,10 @@ UserSchema.static('registerToAccount', function(username, password, account, rol
     });
 });
 
+UserSchema.method('invalidateAuthCache', function () {
+    User.findOne({ username: this.username }).invalidateCache();
+});
+
 UserSchema.static('authenticate', function (username, password, callback) {
     this.findOne({ username: username }).cache().exec(function(err, user) {
         if (err)
@@ -109,4 +113,5 @@ UserSchema.methods.openhab = function(callback) {
 
 UserSchema.index({account:1, role:1});
 
-module.exports = mongoose.model('User', UserSchema);
+User = mongoose.model('User', UserSchema);
+module.exports = User;

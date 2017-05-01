@@ -37,6 +37,7 @@ UserPassword.prototype.setPassword = function(password, fn) {
         fn = undefined;
     }
     this.user.save(fn);
+    this.user.invalidateAuthCache();
 
     return true;
 };
