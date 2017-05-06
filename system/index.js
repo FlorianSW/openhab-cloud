@@ -95,4 +95,12 @@ System.prototype.getBaseURL = function() {
     return this.getProtocol() + '://' + this.getHost() + ':' + this.getPort();
 };
 
+System.prototype.isMultiOpenHABInstanceEnabled = function() {
+    try {
+        return this.getConfig(['system', 'multiOpenHAB']);
+    } catch (err) {
+        return false;
+    }
+};
+
 module.exports = new System();

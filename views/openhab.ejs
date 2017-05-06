@@ -5,7 +5,7 @@
         <div class="container clearfix">
             <div class="row">
                 <h1 class="span8">openHAB settings</h1>
-                <div class="span4" id="navTrail"> <a href="/" class="homeLink">home</a><span>/</span>Account</div>
+                <div class="span4" id="navTrail"> <a href="/" class="homeLink">home</a><span>/</span>openHAB settings</div>
             </div>
         </div>
     </header>
@@ -22,37 +22,64 @@
         <div class="row">
             <div class="span12">
                 <ul>
-                    <% for (var i=0; i<openhabs.length; i++) { %>
                     <table class="table">
                         <thead>
-                            <tr><th>UUID</th><th>Secret</th><th>openHAB Version</th><th>Status</th></tr>
+                            <tr>
+                                <th>UUID</th>
+                                <th>Secret</th>
+                                <th>openHAB Version</th>
+                                <th>Status</th>
+                                <% if (multi) { %>
+                                <th></th>
+                                <% } %>
+                            </tr>
                         </thead>
+                        <% for (var i=0; i<openhabs.length; i++) { %>
                         <tr>
                             <td><%=openhabs[i].uuid%></td>
                             <td><%=openhabs[i].secret%></td>
                             <td><%=openhabs[i].openhabVersion%></td>
                             <td><%=openhabs[i].status%></td>
+                            <% if (multi) { %>
+                            <td>
+                                <a href="/openhab/<%=openhabs[i].uuid%>/delete"><i class="icon-trash"></i></a>
+                            </td>
+                            <% } %>
                         </tr>
+                        <% } %>
                     </table>
-                    <% } %>
                 </ul>
             </div>
         </div>
         <div class="row">
             <div class="span12">
-                <h3>Update openHAB settings</h3>
+                <h3>
+                <% if (!multi) { %>
+                Update openHAB settings
+                <% } else { %>
+                Add new openHAB instance
+                <% } %></h3>
                 <div class="divider"><span></span></div>
             </div>
         </div>
         <div class="row">
             <div class="span12">
+                <% if (multi) { %>
+                Adding multiple openHAB instances to one openHAB-cloud account is an experimental feature and not yet supported by all provided functions. If you add a new openHAB instance, please note, that some functions of openHAB-cloud may just use one of your added instances instead of all of them.<br /><br />
+                <% } %>
                 <form method="post" action="/openhab">
                     <input type="hidden" name="_csrf" value="<%= token %>">
                     <label for="openhabuuid">openHAB UUID</label>
-                    <input id="openhabuuid" type="text" name="openhabuuid" value="<%= openhabs[0].uuid %>">
+                    <input id="openhabuuid" type="text" name="openhabuuid" <% if (!multi) { %>value="<%= openhabs[0].uuid %>"<% } %>>
                     <label for="openhabsecret">openHAB Secret</label>
-                    <input id="openhabsecret" type="text" name="openhabsecret" value="<%= openhabs[0].secret %>">
-                    <button name="submit" type="submit" class="btn" id="submit">Update</button>
+                    <input id="openhabsecret" type="text" name="openhabsecret" <% if (!multi) { %>value="<%= openhabs[0].secret %>"<% } %>>
+                    <button name="submit" type="submit" class="btn" id="submit">
+                        <% if (!multi) { %>
+                        Update
+                        <% } else { %>
+                        Add
+                        <% } %>
+                    </button>
                 </form>
                 <div id="message"></div>
             </div>

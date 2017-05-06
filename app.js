@@ -424,6 +424,9 @@ app.post('/itemsdelete', ensureAuthenticated, ensureMaster, account_routes.items
 
 app.get('/openhab', ensureAuthenticated, ensureMaster, openhab_routes.openhabget);
 app.post('/openhab', ensureAuthenticated, ensureMaster, openhab_routes.openhabpostvalidate, openhab_routes.openhabpost);
+if (system.isMultiOpenHABInstanceEnabled()) {
+    app.get('/openhab/:uuid/delete', ensureAuthenticated, openhab_routes.openhabdelete);
+}
 
 // My devices
 app.get('/devices', ensureAuthenticated, devices_routes.devicesget);
