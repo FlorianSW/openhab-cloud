@@ -520,7 +520,7 @@ function setSessionTimezone(req, res) {
 app.get('/api/events', ensureAuthenticated, events_routes.eventsvaluesget);
 
 function setOpenhab(req, res, next) {
-    req.user.openhab(function (error, openhab) {
+    function callback (error, openhab) {
         if (!error && openhab) {
             req.openhab = openhab;
             next();
@@ -541,11 +541,29 @@ function setOpenhab(req, res, next) {
                 }]
             });
         }
-    });
+    }
+
+    // if the URL specifies the openHAB instance, choose this one as a preferred one, otherwise, use the one returned for
+    // this user.
+    if (req.params.uuid) {
+        var url = req.url,
+            re = new RegExp('/' + req.params.uuid, 'g');
+        logger.info('openHAB-cloud: Found uuid in request: ' + req.params.uuid);
+
+        req.url = url.replace(re, '');
+        logger.debug('openHAB-cloud: Rewrote URL ' + url  + ' for proxy request to: ' + req.url);
+        Openhab.findOne({
+            uuid: req.params.uuid,
+            account: req.user.account
+        }).exec(callback);
+    } else {
+        req.user.openhab(callback);
+    }
 }
 
 function preassembleBody(req, res, next) {
     var data = '';
+
     req.on('data', function (chunk) {
         data += chunk;
     });
@@ -621,7 +639,6 @@ function proxyRouteOpenhab(req, res) {
     res.on('finish', function () {
         delete restRequests[requestId];
     });
-
 }
 
 function addAppleRegistration(req, res) {
@@ -788,26 +805,47 @@ function addAndroidRegistration(req, res) {
 }
 
 // Process all requests from mobile apps to openHAB
+app.all('/:uuid/rest*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/rest*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/images/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/images/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/static/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/static/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/rrdchart.png*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/rrdchart.png*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/chart*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/chart*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/openhab.app*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/openhab.app*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/WebApp*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/WebApp*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/CMD*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/CMD*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/cometVisu*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/cometVisu*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/proxy*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/proxy*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/greent*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/greent*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/jquery.*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/jquery.*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/classicui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/classicui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/paperui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/paperui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/basicui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/basicui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/doc/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/doc/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/start/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/start/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/icon*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/icon*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/habmin/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/habmin/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/remote*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/remote*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
+app.all('/:uuid/habpanel/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/habpanel/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 
 // myOH API for mobile apps
