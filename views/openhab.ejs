@@ -25,6 +25,9 @@
                     <table class="table">
                         <thead>
                             <tr>
+                                <% if (multi) { %>
+                                <th>Name</th>
+                                <% } %>
                                 <th>UUID</th>
                                 <th>Secret</th>
                                 <th>openHAB Version</th>
@@ -36,6 +39,9 @@
                         </thead>
                         <% for (var i=0; i<openhabs.length; i++) { %>
                         <tr>
+                            <% if (multi) { %>
+                            <td><%=openhabs[i].name%></td>
+                            <% } %>
                             <td><%=openhabs[i].uuid%></td>
                             <td><%=openhabs[i].secret%></td>
                             <td><%=openhabs[i].openhabVersion%></td>
@@ -69,6 +75,10 @@
                 <% } %>
                 <form method="post" action="/openhab">
                     <input type="hidden" name="_csrf" value="<%= token %>">
+                    <% if (multi) { %>
+                    <label for="openhabname">openHAB name</label>
+                    <input id="openhabname" type="text" name="openhabname">
+                    <% } %>
                     <label for="openhabuuid">openHAB UUID</label>
                     <input id="openhabuuid" type="text" name="openhabuuid" <% if (!multi) { %>value="<%= openhabs[0].uuid %>"<% } %>>
                     <label for="openhabsecret">openHAB Secret</label>

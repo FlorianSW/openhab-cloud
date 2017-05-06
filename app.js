@@ -277,21 +277,21 @@ app.configure(function () {
     });
     app.use(function (req, res, next) {
         if (req.user) {
-            Openhab.findOne({
+            Openhab.find({
                 account: req.user.account
-            }).lean().exec(function (error, openhab) {
+            }).lean().exec(function (error, openhabs) {
                 res.locals.baseurl = system.getBaseURL();
-                if (!error && openhab) {
-                    res.locals.openhab = openhab;
-                    res.locals.openhabstatus = openhab.status;
-                    res.locals.openhablastonline = openhab.last_online;
-                    if (openhab.openhabVersion !== undefined) {
-                        res.locals.openhabMajorVersion = openhab.openhabVersion.split('.')[0];
+                if (!error && openhabs) {
+                    res.locals.openhabs = openhabs;
+                    res.locals.openhabstatus = openhabs[0].status;
+                    res.locals.openhablastonline = openhabs[0].last_online;
+                    if (openhabs[0].openhabVersion !== undefined) {
+                        res.locals.openhabMajorVersion = openhabs[0].openhabVersion.split('.')[0];
                     } else {
                         res.locals.openhabMajorVersion = 0;
                     }
                 } else {
-                    res.locals.openhab = undefined;
+                    res.locals.openhabs = undefined;
                     res.locals.openhabstatus = undefined;
                     res.locals.openhablastonline = undefined;
                     res.locals.openhabMajorVersion = undefined;

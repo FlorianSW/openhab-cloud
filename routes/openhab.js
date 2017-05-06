@@ -18,8 +18,9 @@ function updateOpenHABSettings(user, uuid, secret, req, res) {
     });
 }
 
-function addOpenHABToUser(user, uuid, secret, req, res) {
+function addOpenHABToUser(user, uuid, secret, name, req, res) {
     Openhab.create({
+        name: name,
         account: user.account,
         uuid: uuid,
         secret: secret
@@ -53,7 +54,7 @@ openhabRoutes.openhabpostvalidate = form(
 );
 
 openhabRoutes.openhabpost = function(req, res) {
-    var uuid, secret;
+    var uuid, secret, name;
 
     if (!req.form.isValid) {
         req.user.openhab(function(error, openhab) {
@@ -64,6 +65,7 @@ openhabRoutes.openhabpost = function(req, res) {
 
     uuid = req.body.openhabuuid;
     secret = req.body.openhabsecret;
+    name = req.body.openhabname || '';
     Openhab.findOne({uuid: uuid}, function(error, openhab) {
         if (error) {
             req.flash('error', 'Could not check, if the openHAB instance is already registered.');
@@ -77,7 +79,7 @@ openhabRoutes.openhabpost = function(req, res) {
         }
 
         if (system.isMultiOpenHABInstanceEnabled()) {
-            addOpenHABToUser(req.user, uuid, secret, req, res);
+            addOpenHABToUser(req.user, uuid, secret, name, req, res);
         } else {
             updateOpenHABSettings(req.user, uuid, secret, req, res);
         }
