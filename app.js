@@ -54,6 +54,7 @@ var flash = require('connect-flash'),
     fs = require('fs'),
     passport = require('passport'),
     account_routes = require('./routes/account'),
+    openhab_routes = require('./routes/openhab'),
     devices_routes = require('./routes/devices'),
     applications_routes = require('./routes/applications'),
     events_routes = require('./routes/events'),
@@ -415,12 +416,14 @@ app.post('/login', passport.authenticate('local', {
 
 // My account
 app.get('/account', ensureAuthenticated, account_routes.accountget);
-app.post('/account', ensureAuthenticated, ensureMaster, account_routes.accountpostvalidate, account_routes.accountpost);
 app.post('/accountpassword', ensureAuthenticated, account_routes.accountpasswordpostvalidate, account_routes.accountpasswordpost);
 app.get('/accountdelete', ensureAuthenticated, ensureMaster, account_routes.accountdeleteget);
 app.post('/accountdelete', ensureAuthenticated, ensureMaster, account_routes.accountdeletepost);
 app.get('/itemsdelete', ensureAuthenticated, ensureMaster, account_routes.itemsdeleteget);
 app.post('/itemsdelete', ensureAuthenticated, ensureMaster, account_routes.itemsdeletepost);
+
+app.get('/openhab', ensureAuthenticated, ensureMaster, openhab_routes.openhabget);
+app.post('/openhab', ensureAuthenticated, ensureMaster, openhab_routes.openhabpostvalidate, openhab_routes.openhabpost);
 
 // My devices
 app.get('/devices', ensureAuthenticated, devices_routes.devicesget);

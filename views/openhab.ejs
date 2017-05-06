@@ -1,0 +1,62 @@
+<% section = 'openhab' %>
+<%- include header.ejs %>
+<section id="content">
+    <header class="headerPage">
+        <div class="container clearfix">
+            <div class="row">
+                <h1 class="span8">openHAB settings</h1>
+                <div class="span4" id="navTrail"> <a href="/" class="homeLink">home</a><span>/</span>Account</div>
+            </div>
+        </div>
+    </header>
+</section>
+<div class="slice clearfix">
+    <div class="container">
+        <%- include alerts.ejs %>
+        <div class="row">
+            <div class="span12">
+                <h3>registered openHAB instances</h3>
+                <div class="divider"><span></span></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="span12">
+                <ul>
+                    <% for (var i=0; i<openhabs.length; i++) { %>
+                    <table class="table">
+                        <thead>
+                            <tr><th>UUID</th><th>Secret</th><th>openHAB Version</th><th>Status</th></tr>
+                        </thead>
+                        <tr>
+                            <td><%=openhabs[i].uuid%></td>
+                            <td><%=openhabs[i].secret%></td>
+                            <td><%=openhabs[i].openhabVersion%></td>
+                            <td><%=openhabs[i].status%></td>
+                        </tr>
+                    </table>
+                    <% } %>
+                </ul>
+            </div>
+        </div>
+        <div class="row">
+            <div class="span12">
+                <h3>Update openHAB settings</h3>
+                <div class="divider"><span></span></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="span12">
+                <form method="post" action="/openhab">
+                    <input type="hidden" name="_csrf" value="<%= token %>">
+                    <label for="openhabuuid">openHAB UUID</label>
+                    <input id="openhabuuid" type="text" name="openhabuuid" value="<%= openhabs[0].uuid %>">
+                    <label for="openhabsecret">openHAB Secret</label>
+                    <input id="openhabsecret" type="text" name="openhabsecret" value="<%= openhabs[0].secret %>">
+                    <button name="submit" type="submit" class="btn" id="submit">Update</button>
+                </form>
+                <div id="message"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<%- include footer.ejs %>
