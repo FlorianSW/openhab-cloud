@@ -519,13 +519,49 @@ function setSessionTimezone(req, res) {
 // REST routes
 app.get('/api/events', ensureAuthenticated, events_routes.eventsvaluesget);
 
+function getCookiesFromRequest(req) {
+    var cookies = {},
+        requestCookies = req.headers.cookie;
+
+    if (!requestCookies) {
+        return cookies;
+    }
+
+    requestCookies.split(';').forEach(function(cookie) {
+        var parts = cookie.split('=');
+        cookies[parts.shift().trim()] = decodeURI(parts.join());
+    });
+
+    return cookies;
+}
+
+/**
+ * Take sthe request and sets the openHAB instance to req.openhab, that should be used during the processing of this
+ * request. The openHAB UUID, which will be used for the lookup, is selected in the following way:
+ *  - if the request contains the UUID path parameter, this UUID will be used for the lookup
+ *  - if the request sends an openHAB UUID via the openhab-uuid cookie, this UUID is used
+ *  - if none of the above methods returned an UUID, a randomly selected openHAB instance of the currently logged in
+ *    user will be used
+ *
+ * The UUID will then be used to lookup the openHAB instance in our database, along with the account of the logged in
+ * user to protect against openHAB instance hijacking. If no openHAB, matching these criteria, was found, the request
+ * will be ended with status code 500.
+ *
+ * @param req
+ * @param res
+ * @param next
+ */
 function setOpenhab(req, res, next) {
+    var cookies = getCookiesFromRequest(req),
+        uuid;
+
     function callback (error, openhab) {
         if (!error && openhab) {
             req.openhab = openhab;
             next();
             return;
         }
+        setOpenhabUUIDCookie(res, '');
         if (error) {
             logger.error('openHAB-cloud: openHAB lookup error: ' + error);
             return res.status(500).json({
@@ -543,17 +579,24 @@ function setOpenhab(req, res, next) {
         }
     }
 
-    // if the URL specifies the openHAB instance, choose this one as a preferred one, otherwise, use the one returned for
-    // this user.
     if (req.params.uuid) {
+        // if the URL specifies the openHAB instance, choose this one as a preferred one, otherwise, use the one returned for
+        // this user.
         var url = req.url,
             re = new RegExp('/' + req.params.uuid, 'g');
         logger.info('openHAB-cloud: Found uuid in request: ' + req.params.uuid);
 
         req.url = url.replace(re, '');
         logger.debug('openHAB-cloud: Rewrote URL ' + url  + ' for proxy request to: ' + req.url);
+        uuid = req.params.uuid;
+    } else if (cookies.hasOwnProperty('openhab-uuid')) {
+        logger.info('openHAB-cloud: Found uuid in cookies: ' + cookies['openhab-uuid']);
+        uuid = cookies['openhab-uuid'];
+    }
+
+    if (uuid) {
         Openhab.findOne({
-            uuid: req.params.uuid,
+            uuid: uuid,
             account: req.user.account
         }).exec(callback);
     } else {
@@ -573,6 +616,45 @@ function preassembleBody(req, res, next) {
     });
 }
 
+/**
+ * Takes the given UUID and sets a cookie to the response, if the headers aren't sent already, which can be
+ * used to identify future requests as being made for this openHAB uuid.
+ *
+ * This function does not ensure, that the openHAB uuid actually belongs to this user, callers should to that
+ * for themself.
+ *
+ * If uuid is an empty String, the cookie will be removed.
+ *
+ * @param {ServerResponse} res The response to which the cookie should be set to
+ * @param {String} uuid The UUID to set in the cookie
+ */
+function setOpenhabUUIDCookie(res, uuid) {
+    var options = {};
+
+    if (res.headersSent)
+        return;
+
+    if (uuid === '')
+        options['expires'] = new Date(1);
+
+    res.cookie('openhab-uuid', uuid, options);
+}
+
+/**
+ * Prepares the request to be proxied to the openHAB instance set by setOpenhab. The preparation includes, but is not
+ * limited to:
+ *  - removing unnecessary headers, like cookie, authorization, x-forwarded-* and so on
+ *  - sets new header fields, so that the answer of openHAB can actually be handled by the browser as coming from
+ *    openHAB-cloud
+ *
+ * After the request is made, openHAB will usually answer this request, which is NOT handled by this function. The
+ * response (res) is saved in a restRequest object with a unique requestId, which will also be included in the answer
+ * from openHAB. The answer then can be handled by the socket.io listeners to response* events, where the answer of
+ * openHAB will be added to the ServerResponse.
+ *
+ * @param {Request} req
+ * @param {ServerResponse} res
+ */
 function proxyRouteOpenhab(req, res) {
     req.connection.setTimeout(600000);
     
@@ -590,8 +672,6 @@ function proxyRouteOpenhab(req, res) {
     var requestId = requestCounter;
     // make a local copy of request headers to modify
     var requestHeaders = req.headers;
-    // get remote hose from either x-forwarded-for or request
-    var remoteHost = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     // We need to remove and modify some headers here
     delete requestHeaders['cookie'];
     delete requestHeaders['cookie2'];
@@ -621,6 +701,11 @@ function proxyRouteOpenhab(req, res) {
         body: req.rawBody
     });
     res.openhab = req.openhab;
+    // in multi openHAB instance mode is enabled, make sure, that the request can
+    // be identified to belong to a specific openHAB instance by setting a cookie
+    if (system.isMultiOpenHABInstanceEnabled()) {
+        setOpenhabUUIDCookie(res, req.openhab.uuid);
+    }
     restRequests[requestId] = res;
 
     //we should only have to catch these two callbacks to hear about the response
@@ -813,8 +898,6 @@ app.all('/:uuid/static/*', ensureRestAuthenticated, preassembleBody, setOpenhab,
 app.all('/static/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/:uuid/rrdchart.png*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/rrdchart.png*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
-app.all('/:uuid/chart*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
-app.all('/chart*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/:uuid/openhab.app*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/openhab.app*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/:uuid/WebApp*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
@@ -827,8 +910,6 @@ app.all('/:uuid/proxy*', ensureRestAuthenticated, preassembleBody, setOpenhab, p
 app.all('/proxy*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/:uuid/greent*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/greent*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
-app.all('/:uuid/jquery.*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
-app.all('/jquery.*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/:uuid/classicui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/classicui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/:uuid/paperui/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
