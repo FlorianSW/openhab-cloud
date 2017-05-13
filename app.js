@@ -50,6 +50,7 @@ var flash = require('connect-flash'),
     routes = require('./routes'),
     user = require('./routes/user'),
     http = require('http'),
+    ServerResponse = require('http').ServerResponse,
     path = require('path'),
     fs = require('fs'),
     passport = require('passport'),
@@ -659,10 +660,7 @@ function proxyRouteOpenhab(req, res) {
     req.connection.setTimeout(600000);
     
     if (req.openhab.status === 'offline') {
-        res.writeHead(500, 'openHAB is offline', {
-            'content-type': 'text/plain'
-        });
-        res.end('openHAB is offline');
+        sendOpenhabOffline(res);
         return;
     }
 
@@ -723,6 +721,118 @@ function proxyRouteOpenhab(req, res) {
     //when a response is closed by us
     res.on('finish', function () {
         delete restRequests[requestId];
+    });
+}
+
+/**
+ * Helper method, which sends an "openHAB is offline" message to the passed ServerResponse.
+ *
+ * @param {ServerResponse} res
+ */
+function sendOpenhabOffline(res) {
+    res.writeHead(500, 'openHAB is offline', {
+        'content-type': 'text/plain'
+    });
+    res.end('openHAB is offline');
+}
+
+/**
+ * A custom callback for the /rest/sitemaps route. For multi-instance mode, the REST API endpoint should not only return
+ * sitemaps of the first returned openHAB instance of the user, but a merged array of sitemaps for all openHAB instances
+ * registered in the account of the user and online.
+ *
+ * This callback will fetch all openHAB instances and requests the sitemap of all online instances. Once they responded,
+ * which is recorded in a separate intermediate ServerResponse object, the response will be send to the client as a merged
+ * array of sitemaps.
+ *
+ * If one of the requests failed, the whole request of the user will be terminated with a 500 error.
+ *
+ * @param req
+ * @param res
+ */
+function proxyRouteOpenhabSitemaps(req, res) {
+    req.user.findOpenhabs(function (err, openhabs) {
+        var promises = [],
+            mergedSitemaps = [];
+
+        // this case needs to be handled here, as the openHAB instance is not set in the request already, tehrefore no
+        // checks, if an instance is here, was made so far.
+        if (err || !openhabs) {
+            res.writeHead(500, 'no openHAB found', {
+                'content-type': 'text/plain'
+            });
+            res.end('openHAB was not found for this user or there was an error.');
+            return;
+        }
+
+        openhabs.forEach(function (openhab) {
+            var promise;
+
+            // this check is redundant with the one in procyRouteOpenhab, however, not having the overhead of the method
+            // is probably good, and checking it here is cheap.
+            if (openhab.status === 'offline')
+                return;
+
+            req.openhab = openhab;
+
+            // making the requests in a promise allows us to use the resolve and reject methods of Promise and track
+            // all requests in a single promise with Promise.all.
+            promise = new Promise(function (resolve, reject) {
+                // constructing a new ServerResponse object allows us to modify how content is handled without destroying
+                // the original ServerResponse.
+                var serverResponse = new ServerResponse(req);
+
+                // the write method is used to write data to the request, however, we don't want to send data here
+                // so we mutate the data as needed and merge it with the data for the response.
+                serverResponse.write = function (data) {
+                    if (data instanceof Buffer)
+                        data = data.toString();
+
+                    data = JSON.parse(data);
+                    // mutate the links in the response to contain the UUID of the openHAB instance. This allows the
+                    // client (the app) to handle multiple instances using the sitemaps without the need to rewrite
+                    // further requests (as it should be handled by the cookie set during the request to /uuid/rest/*).
+                    for (var sitemapIndex in data) {
+                        var re = new RegExp('/rest', 'g'),
+                            replaceValue = '/' + openhab.uuid + '/rest';
+
+                        sitemap = data[sitemapIndex];
+                        // if the sitemap has a link it should be rewritten to conatin the openhab uuid in it
+                        if (sitemap.hasOwnProperty('link'))
+                            sitemap.link = sitemap.link.replace(re, replaceValue);
+
+                        if (sitemap.hasOwnProperty('homepage') && sitemap.homepage.hasOwnProperty('link'))
+                            sitemap.homepage.link = sitemap.homepage.link.replace(re, replaceValue);
+
+                        // push the sitemap to the list of all sitemaps
+                        mergedSitemaps.push(sitemap);
+                    }
+                    resolve();
+                };
+                // just in case the request fails, handle it and simply reject the promise
+                serverResponse.send = function (code, error) {
+                    reject(error);
+                };
+                // sets the current openhab instance, which will be used by proxyRouteOpenhab to send the request to
+                // the correct instance.
+                proxyRouteOpenhab(req, serverResponse);
+            });
+            promises.push(promise);
+        });
+
+        // it could be possible, that no openHAB instance is online.
+        if (promises.length === 0) {
+            sendOpenhabOffline(res);
+            return;
+        }
+        // once all promises are resolved or one is rejected send the appropriate response.
+        Promise.all(promises).then(function () {
+            res.write(JSON.stringify(mergedSitemaps));
+            res.end();
+        }, function (reason) {
+            res.send(500, reason);
+            res.end();
+        });
     });
 }
 
@@ -890,6 +1000,12 @@ function addAndroidRegistration(req, res) {
 }
 
 // Process all requests from mobile apps to openHAB
+// If multiple instances are allowed to be set in this openHAB-cloud instance, do not directly pass
+// the sitemaps REST API endpoint to openhab, but proxy it to each registered openHAB instance of the user
+// and merge the results into one.
+if (system.isMultiOpenHABInstanceEnabled())
+    app.all('/rest/sitemaps', ensureRestAuthenticated, preassembleBody, proxyRouteOpenhabSitemaps);
+
 app.all('/:uuid/rest*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/rest*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
 app.all('/:uuid/images/*', ensureRestAuthenticated, preassembleBody, setOpenhab, proxyRouteOpenhab);
