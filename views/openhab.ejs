@@ -37,7 +37,7 @@
                                 <% } %>
                             </tr>
                         </thead>
-                        <% for (var i=0; i<openhabs.length; i++) { %>
+                        <% for (var i=0; i < openhabs.length; i++) { %>
                         <tr>
                             <% if (multi) { %>
                             <td><%=openhabs[i].name%></td>
@@ -80,9 +80,9 @@
                     <input id="openhabname" type="text" name="openhabname">
                     <% } %>
                     <label for="openhabuuid">openHAB UUID</label>
-                    <input id="openhabuuid" type="text" name="openhabuuid" <% if (!multi) { %>value="<%= openhabs[0].uuid %>"<% } %>>
+                    <input id="openhabuuid" type="text" name="openhabuuid" <% if (!multi && openhabs.length > 0) { %>value="<%= openhabs[0].uuid %>"<% } %>>
                     <label for="openhabsecret">openHAB Secret</label>
-                    <input id="openhabsecret" type="text" name="openhabsecret" <% if (!multi) { %>value="<%= openhabs[0].secret %>"<% } %>>
+                    <input id="openhabsecret" type="text" name="openhabsecret" <% if (!multi && openhabs.length > 0) { %>value="<%= openhabs[0].secret %>"<% } %>>
                     <button name="submit" type="submit" class="btn" id="submit">
                         <% if (!multi) { %>
                         Update

@@ -282,7 +282,7 @@ app.configure(function () {
                 account: req.user.account
             }).lean().exec(function (error, openhabs) {
                 res.locals.baseurl = system.getBaseURL();
-                if (!error && openhabs) {
+                if (!error && openhabs.length !== 0) {
                     res.locals.openhabs = openhabs;
                     res.locals.openhabstatus = openhabs[0].status;
                     res.locals.openhablastonline = openhabs[0].last_online;
@@ -520,29 +520,11 @@ function setSessionTimezone(req, res) {
 // REST routes
 app.get('/api/events', ensureAuthenticated, events_routes.eventsvaluesget);
 
-function getCookiesFromRequest(req) {
-    var cookies = {},
-        requestCookies = req.headers.cookie;
-
-    if (!requestCookies) {
-        return cookies;
-    }
-
-    requestCookies.split(';').forEach(function(cookie) {
-        var parts = cookie.split('=');
-        cookies[parts.shift().trim()] = decodeURI(parts.join());
-    });
-
-    return cookies;
-}
-
 /**
- * Take sthe request and sets the openHAB instance to req.openhab, that should be used during the processing of this
+ * Takes the request and sets the openHAB instance to req.openhab, that should be used during the processing of this
  * request. The openHAB UUID, which will be used for the lookup, is selected in the following way:
  *  - if the request contains the UUID path parameter, this UUID will be used for the lookup
- *  - if the request sends an openHAB UUID via the openhab-uuid cookie, this UUID is used
- *  - if none of the above methods returned an UUID, a randomly selected openHAB instance of the currently logged in
- *    user will be used
+ *  - a randomly selected openHAB instance of the currently logged in user will be used
  *
  * The UUID will then be used to lookup the openHAB instance in our database, along with the account of the logged in
  * user to protect against openHAB instance hijacking. If no openHAB, matching these criteria, was found, the request
@@ -553,8 +535,7 @@ function getCookiesFromRequest(req) {
  * @param next
  */
 function setOpenhab(req, res, next) {
-    var cookies = getCookiesFromRequest(req),
-        uuid;
+    var uuid;
 
     function callback (error, openhab) {
         if (!error && openhab) {
@@ -562,7 +543,7 @@ function setOpenhab(req, res, next) {
             next();
             return;
         }
-        setOpenhabUUIDCookie(res, '');
+
         if (error) {
             logger.error('openHAB-cloud: openHAB lookup error: ' + error);
             return res.status(500).json({
@@ -590,9 +571,6 @@ function setOpenhab(req, res, next) {
         req.url = url.replace(re, '');
         logger.debug('openHAB-cloud: Rewrote URL ' + url  + ' for proxy request to: ' + req.url);
         uuid = req.params.uuid;
-    } else if (cookies.hasOwnProperty('openhab-uuid')) {
-        logger.info('openHAB-cloud: Found uuid in cookies: ' + cookies['openhab-uuid']);
-        uuid = cookies['openhab-uuid'];
     }
 
     if (uuid) {
@@ -615,30 +593,6 @@ function preassembleBody(req, res, next) {
         req.rawBody = data;
         next();
     });
-}
-
-/**
- * Takes the given UUID and sets a cookie to the response, if the headers aren't sent already, which can be
- * used to identify future requests as being made for this openHAB uuid.
- *
- * This function does not ensure, that the openHAB uuid actually belongs to this user, callers should to that
- * for themself.
- *
- * If uuid is an empty String, the cookie will be removed.
- *
- * @param {ServerResponse} res The response to which the cookie should be set to
- * @param {String} uuid The UUID to set in the cookie
- */
-function setOpenhabUUIDCookie(res, uuid) {
-    var options = {};
-
-    if (res.headersSent)
-        return;
-
-    if (uuid === '')
-        options['expires'] = new Date(1);
-
-    res.cookie('openhab-uuid', uuid, options);
 }
 
 /**
@@ -699,11 +653,7 @@ function proxyRouteOpenhab(req, res) {
         body: req.rawBody
     });
     res.openhab = req.openhab;
-    // in multi openHAB instance mode is enabled, make sure, that the request can
-    // be identified to belong to a specific openHAB instance by setting a cookie
-    if (system.isMultiOpenHABInstanceEnabled()) {
-        setOpenhabUUIDCookie(res, req.openhab.uuid);
-    }
+
     restRequests[requestId] = res;
 
     //we should only have to catch these two callbacks to hear about the response
@@ -1272,6 +1222,7 @@ io.sockets.on('connection', function (socket) {
         var requestId = data.id;
         if (restRequests[requestId] !== null) {
             if (self.handshake.uuid === restRequests[requestId].openhab.uuid && !restRequests[requestId].headersSent) {
+                delete(data.headers['Content-Length']);
                 restRequests[requestId].writeHead(data.responseStatusCode, data.responseStatusText, data.headers);
             } else {
                 logger.warn('openHAB-cloud: ' + self.handshake.uuid + ' tried to respond to request which it doesn\'t own');
@@ -1284,10 +1235,12 @@ io.sockets.on('connection', function (socket) {
     });
     // This is a method for old versions of openHAB-cloud bundle which use base64 encoding for binary
     socket.on('responseContent', function (data) {
-        var self = this;
-        var requestId = data.id;
+        var self = this,
+            requestId = data.id,
+            request;
         if (restRequests[requestId] !== null) {
-            if (self.handshake.uuid === restRequests[requestId].openhab.uuid) {
+            request = restRequests[requestId];
+            if (self.handshake.uuid === request.openhab.uuid) {
                 restRequests[requestId].write(new Buffer(data.body, 'base64'));
             } else {
                 logger.warn('openHAB-cloud: ' + self.handshake.uuid + ' tried to respond to request which it doesn\'t own');
@@ -1300,11 +1253,16 @@ io.sockets.on('connection', function (socket) {
     });
     // This is a method for new versions of openHAB-cloud bundle which use bindary encoding
     socket.on('responseContentBinary', function (data) {
-        var self = this;
-        var requestId = data.id;
+        var self = this,
+            requestId = data.id,
+            request, body, headers;
         if (restRequests[requestId] !== null) {
-            if (self.handshake.uuid === restRequests[requestId].openhab.uuid) {
-                restRequests[requestId].write(data.body);
+            request = restRequests[requestId];
+            if (self.handshake.uuid === request.openhab.uuid) {
+                body = data.body.toString();
+                body = body.replace('/basicui/app', 'app');
+
+                request.write(new Buffer(body));
             } else {
                 logger.warn('openHAB-cloud: ' + self.handshake.uuid + ' tried to respond to request which it doesn\'t own');
             }

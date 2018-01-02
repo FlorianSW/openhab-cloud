@@ -19,9 +19,9 @@
     "ejs": "2.5.5",
     "ejs-locals": "1.0.2",
     "email-templates": "2.5.4",
-    "express": "3.20.2",
+    "express": "^3.20.2",
     "express-form": "0.12.6",
-    "express-session": "1.14.1",
+    "express-session": "^1.14.1",
     "heapdump": "0.3.7",
     "hiredis": "0.4",
     "less-middleware": "2.2.0",
@@ -32,7 +32,7 @@
     "mongoose-types": "1.0.3",
     "node-gcm": "0.14.4",
     "node-xmpp": "1.0.8",
-    "nodemailer": "0.5.2",
+    "nodemailer": "^0.5.2",
     "oauth2orize": "1.0.1",
     "passport": "0.1.18",
     "passport-http": "0.2.2",
@@ -51,6 +51,6 @@
     "winston": "0.7.2"
   },
   "devDependencies": {
-    "qunitjs": "^2.3.2"
+    "qunitjs": "^2.4.1"
   }
 }

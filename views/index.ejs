@@ -95,7 +95,7 @@
     <section class="slice clearfix">
         <div class=" clearfix">
             <div class="container" id="threeColumns">
-                <% if (openhabs.length > 0) { %>
+                <% if (openhabs && openhabs.length > 0) { %>
                     <% for (var i = 0; i < openhabs.length; i++) { %>
                         <div class="span5">
                             <h3><%=openhabs[i].name || 'Unknown openHAB'%><span class="openhabstatus <%=openhabs[i].status%>"></span></h3>
